@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+
+<head>
+  <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+  <link rel="shortcut icon" href="/assets/img/logo.png">
+</head>
+
+<body>
+
+  <script>
+    if (location.hash)
+      history.replaceState({}, "", location.hash.substr(1));
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      --oxy-load-persentage: 0;
+    }
+
+    #oxy-loading-splash {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      position: fixed;
+      opacity: calc(5 - 5 * var(--oxy-load-persentage) / 100);
+      background-color: #ffffff;
+      transition-delay: 0.5s;
+      transition: opacity 1s;
+    }
+
+    #oxy-loading-splash img {
+      max-width: 20vmin;
+
+      --spins: 4;
+      transform: perspective(500px) rotateY(calc(var(--oxy-load-persentage) / 100 * 360 * 1deg * var(--spins)));
+      transition: 1.5s ease-in-out all;
+    }
+
+    #oxy-loading-bar:after {
+      content: ' ';
+      position: absolute;
+
+      margin-top: 10px;
+
+      height: 1px;
+
+      background-color: dimgrey;
+
+      transition: 0.5s ease-in-out all;
+
+      --width: 0.3vmin;
+      width: var(--width);
+      margin-left: calc(var(--width) / -2);
+
+      opacity: calc(2 * var(--oxy-load-persentage) / 100);
+      transform: scale3d(var(--oxy-load-persentage), 1, 1);
+    }
+  </style>
+
+  <div id='oxy-loading-splash'>
+    <img src="/assets/img/logo.png" />
+    <div id='oxy-loading-bar'></div>
+  </div>
+
+  <script oxy=':init' async src='/assets/oxy/js/init.js'></script>
+</body>
