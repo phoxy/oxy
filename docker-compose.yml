@@ -10,6 +10,6 @@ services:
   frontend:
     image: nginx:alpine
     volumes:
-    - ./app/assets:/usr/share/nginx/html:ro
+    - ./app:/usr/share/nginx/html:ro
   backend:
     image: nginx:alpine

@@ -3,7 +3,7 @@ class oxy_loader {
     this.oxy = oxyHolder;
   }
 
-  rest(url, data) {
+  rest(url, data, retry = 1) {
     const fetch_params = {};
 
     if (data) {
@@ -14,8 +14,16 @@ class oxy_loader {
       };
     }
 
-    return window.fetch(url, fetch_params)
-      .then(response => response.text());
+    try {
+      return window.fetch(url, fetch_params)
+        .then((data, reject) => data.ok ? data.text() : reject(data));
+    } catch (e) {
+      // request failed
+      if (data || !retry) // do not retry post
+        throw e;
+
+      return rest(url, data, retry - 1);
+    }
   }
 
   async resourseUrl(url) {
@@ -46,7 +54,9 @@ class oxy_loader {
 
     try {
       this.oxy_version = this.rest('api/version');
-      return await this.oxy_version;
+
+      return this.oxy_version
+        .catch(x => this.oxy_version = 0);
     } catch (e) {
       return undefined;
     }
@@ -56,7 +66,7 @@ class oxy_loader {
     const url = await this.resourseUrl(`/assets/oxy/js/modules/${module}.js`);
     let res = await import(url);
 
-    return this.oxy[module] = res;
+    return this.oxy[module] = new res[module];
   }
 
   static asyncChain(source_promise) {
@@ -104,5 +114,7 @@ class oxy_loader {
     }
   })
 
-  //window.oxy.app.start();
+  window.oxy.loader = loader;
+
+  window.oxy.app.start();
 }
