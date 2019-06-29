@@ -133,9 +133,6 @@ class oxy_loader {
       let load_promise = loader.injectModule(key);
       let chain_shortcut = oxy_loader.asyncChain(load_promise);
 
-      // dev
-      load_promise.then(x => console.log(key, "is loaded"));
-
       return target[key] = chain_shortcut;
     }
   })

@@ -38,8 +38,7 @@ class template_context {
     this.state.hooks.after.render.node.push(
       async node => {
         const target = node.querySelector(`#${id}`);
-        target.insertAdjacentHTML("afterEnd", id);
-        //target.insertAdjacentElement("afterEnd", await promise);
+        target.insertAdjacentElement("afterEnd", await promise);
         target.parentNode.removeChild(target);
       }
     )
@@ -64,7 +63,7 @@ class template_instance_state {
     };
 
     const create_promise = () => {
-      const before = [_ => console.log('before', _)], after = [_ => console.log('after', _)];
+      const before = [], after = [];
 
       const unwrap = (arr, _) => arr.map(x => x(_));
 
@@ -266,8 +265,6 @@ export class tpl {
 
     chunks[0] = `=\`${chunks[0]}\``;
     const compiled = chunks.map(x => process(x));
-
-    console.log(compiled);
 
     return compiled.join(`\n`);
   }
