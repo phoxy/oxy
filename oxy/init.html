@@ -30,14 +30,16 @@
       background-color: #ffffff;
       transition-delay: 0.5s;
       transition: opacity 1s;
+
+      --spins: 4;
     }
 
     #oxy-loading-splash img {
       max-width: 20vmin;
-
-      --spins: 4;
       transform: perspective(500px) rotateY(calc(var(--oxy-load-persentage) / 100 * 360 * 1deg * var(--spins)));
-      transition: 1.5s ease-in-out all;
+      transition: 10s cubic-bezier(0,1.25,0,.88) all;
+      transition: 5s cubic-bezier(.07,1.05,.56,.97) all;
+      transition: 2s cubic-bezier(.58,.92,.61,.99) all;
     }
 
     #oxy-loading-bar:after {

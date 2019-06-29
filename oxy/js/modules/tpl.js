@@ -1,10 +1,126 @@
+class template_context {
+  buffer = [];
+
+  construct(args) {
+  }
+
+  append(text) {
+    this.buffer.push(text);
+  }
+
+  async html() {
+    const resolved = await Promise.all(this.buffer)
+    return resolved.join(`\n`);
+  }
+
+  addTemplate(address) {
+    this.append(`TODO: addTemplate ${address}`);
+  }
+}
+
+class template_instance {
+  constructor() {
+    const on = {
+      render: {
+        html: null,
+        finished: null,
+      },
+      dom: {
+        attached: null,
+      }
+    };
+
+    const create_promise = () => {
+      let run;
+      let p = new Promise(r => run = r);
+      return [p, run];
+    }
+
+    const recursive = (obj) => {
+      let ret = {on: {}, handle: {}};
+
+      for (let k in obj) {
+        const v = obj[k];
+        let on, handle;
+        if (v !== null) 
+          [on, handle] = recursive(v);
+        else
+          [on, handle] = create_promise();
+        
+        [ret.on[k], ret.handle[k]] = [on, handle]; 
+      }
+
+      return [ret.on, ret.handle];
+    }
+
+    [this.on, this.handle] = recursive(on);
+  }
+}
+
+class template_functor {
+  constructor(name, code) {
+    const inject =
+      [
+        `return function tpl_${name}() {`,
+        code,
+        `}`
+      ].join(`\n`);
+
+    this.eval = new Function(inject)();
+  }
+
+  context(args) {
+    const context = new template_context(args);
+
+    return new Proxy(context, {
+      get: (t, p) => {
+        return t[p] || args[p];
+      },
+      set: (t, p, v) => {
+        let receiver = typeof t[p] == 'undefined' ? args : t;
+        return receiver[p] = v;
+      },
+    });
+  }
+
+  instance() {
+    return new template_instance();
+  }
+
+  run(args) {
+    const context = this.context(args);
+    const last_output = this.eval.call(context);
+
+    if (last_output)
+      context.append(last_output);
+
+    const instance = this.instance();
+
+    instance.on.render.html
+      .then(html => {
+        console.log('appending to dom');
+      })
+
+    context.html()
+      .then(x => instance.handle.render.html(x))
+
+    return instance;
+
+  }
+}
+
 export class tpl {
   async render(address, args = {}) {
     const code = await oxy.loader.rest(`tpl/${address}.tpl`);
+    const name = address.replace(/[^\w\d]/g, `_`);
 
-    const template = this.compile(code);
+    const compiled = await this.compile(code);
+    const template = new template_functor(name, compiled);
 
-    return "test";
+    const html = template.run(args);
+
+    return html;
+    //return instance.render(args);
   }
 
   async compile(code) {
@@ -46,33 +162,14 @@ export class tpl {
       return [
         modes[mode](insideBrackets),
         echo(outsideBrackets),
-      ].join('');
+      ].join(``);
     }
 
     chunks[0] = `=${chunks[0]}`;
     const compiled = chunks.map(x => process(x));
 
     console.log(compiled);
-  }
-}
 
-class template_instance {
-  buffer = [];
-
-  construct() {
-
-  }
-
-  append(text) {
-    this.buffer.push(text);
-  }
-
-  async html() {
-    const resolved = await Promise.all(this.buffer)
-    return resolved.join(`\n`);
-  }
-
-  async addTemplate(address) {
-
+    return compiled.join(`\n`);
   }
 }

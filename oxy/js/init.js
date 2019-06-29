@@ -92,6 +92,32 @@ class oxy_loader {
       }
     })
   }
+
+  spinStep() {
+    const spins = 4 || document.getElementById('oxy-loading-splash').style.getPropertyValue('--spins');
+    const step = 180 / 360 / spins;
+    return step;
+  }
+
+  async loadStage(name) {
+    const stages = {
+      loader_starts: 10,
+      app_module_loaded: 30,
+      template_module_loaded: 40,
+      first_template_loaded: 50,
+      first_template_rendered: 80,
+      done: 100,
+    };
+
+    const v = stages[name];
+    
+    if (!v) return;
+
+    const step = v / 10 * this.spinStep();
+
+    await this.DOMUpdateTimeslot();
+    document.body.style.setProperty('--oxy-load-persentage', step * 100);
+  };
 }
 
 // Develop purposes:
@@ -115,6 +141,7 @@ class oxy_loader {
   })
 
   window.oxy.loader = loader;
+  loader.loadStage('loader_starts');
 
   window.oxy.app.start();
 }
