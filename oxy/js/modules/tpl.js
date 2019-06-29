@@ -1,10 +1,13 @@
 class template_context {
   buffer = [];
+  name;
 
-  construct(args) {
+  constructor(name, args) {
+    this.name = name;
   }
 
   append(text) {
+    //this.dom.insertAdjacentHTML('beforeend', text);
     this.buffer.push(text);
   }
 
@@ -13,21 +16,39 @@ class template_context {
     return resolved.join(`\n`);
   }
 
+  async node() {
+    const html = await this.html();
+    const shadowHost = document.createElement(`${this.name}`);
+    shadowHost.innerHTML = html;
+
+    this.dom = shadowHost;
+    return shadowHost;
+  }
+
   addTemplate(address, args = {}) {
+    return;
     const task = oxy.tpl.render(address, args);
     const promise = task.then(x => x.on.render.html);
 
-    this.append(promise);
+    const shadowHost = document.createElement(`${address.replace('/', '-')}`);
+    const shadowRoot = shadowHost.attachShadow({mode: 'open'});
 
-    return `<!-- addTemplate ${address} -->`;
+    const shadow = promise.then(html => 
+      shadowRoot.appendChild(html)  
+    );
+
+    this.dom.appendChild(shadowHost);
   }
 }
 
-class template_instance {
+class template_instance_state {
   constructor() {
     const on = {
       render: {
+        start: null,
+        buffer: null,
         html: null,
+        node: null,
         finished: null,
       },
       dom: {
@@ -60,22 +81,24 @@ class template_instance {
 
     [this.on, this.handle] = recursive(on);
   }
+
+  run() {
+    this.handle.render.start();
+
+    return this.on;
+  }
 }
 
-class template_functor {
-  constructor(name, code) {
-    const inject =
-      [
-        `return function tpl_${name}() {`,
-        code,
-        `}`
-      ].join(`\n`);
+class template_instance {
+  state = new template_instance_state();
 
-    this.eval = new Function(inject)();
+  constructor(name, args, functor) {
+    const context = this.context(name, args);
+    this.init(context, functor);
   }
 
-  context(args) {
-    const context = new template_context(args);
+  context(name, args) {
+    const context = new template_context(name, args);
 
     return new Proxy(context, {
       get: (t, p) => {
@@ -88,29 +111,48 @@ class template_functor {
     });
   }
 
-  instance() {
-    return new template_instance();
+
+  init(context, functor) {
+    this.state.on.render.start
+      .then(_ => {
+        const last_output = functor.eval.call(context);
+
+        if (last_output)
+          context.append(last_output);
+
+        return context.buffer
+      })
+      .then(this.state.handle.render.buffer);
+
+    this.state.on.render.buffer
+      .then(x => context.node())
+      .then(this.state.handle.render.node);
+
+    return this;
   }
 
-  run(args) {
-    const context = this.context(args);
-    const last_output = this.eval.call(context);
+  run() {
+    return this.state.run();
+  }
+}
 
-    if (last_output)
-      context.append(last_output);
+class template_functor {
+  
+  constructor(name, code) {
+    this.name = name;
+    
+    const inject =
+      [
+        `return function tpl_${name}() {`,
+        code,
+        `}`
+      ].join(`\n`);
 
-    const instance = this.instance();
+    this.eval = new Function(inject)();
+  }
 
-    instance.on.render.html
-      .then(html => {
-        console.log('appending to dom');
-      })
-
-    context.html()
-      .then(x => instance.handle.render.html(x))
-
-    return instance;
-
+  instance(args) {
+    return new template_instance(this.name, args, this);
   }
 }
 
@@ -122,10 +164,9 @@ export class tpl {
     const compiled = await this.compile(code);
     const template = new template_functor(name, compiled);
 
-    const html = template.run(args);
+    const instance = template.instance(args);
 
-    return html;
-    //return instance.render(args);
+    return instance.run();
   }
 
   async compile(code) {

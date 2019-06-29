@@ -1,7 +1,10 @@
 {{+ `frame/index` }}
+
+<test>
 Test
-<h1>test</h1>
 {{ console.log('cool') }}
+<h1>test</h1>
+</test>
 
 {{< '<xss>fine</xss>' }}
 {{= '<raw>fine</raw>' }}

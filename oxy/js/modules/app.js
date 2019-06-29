@@ -13,11 +13,11 @@ export class app {
     const instance = await oxy.tpl.render(startTemplate);
     p('first_template_loaded');
     
-    const html = await instance.on.render.html;
+    const node = await instance.render.node;
     p('first_template_rendered');
     
     await oxy.loader.DOMUpdateTimeslot();
-    document.getElementById('oxy-default-render-place').innerHTML = html;
+    document.getElementById('oxy-default-render-place').appendChild(node);
 
     // loader.loadStage('done');
   }
