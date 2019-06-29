@@ -21,7 +21,7 @@ class template_context {
 
   async node() {
     const html = await this.html();
-    const shadowHost = document.createElement(`${this.name}`);
+    const shadowHost = document.createElement(`oxytpl-${this.name}`);
     shadowHost.innerHTML = html;
 
     this.dom = shadowHost;
@@ -33,17 +33,18 @@ class template_context {
     const id = genTemplId(address);
 
     const task = oxy.tpl.render(address, args);
-    const promise = task.then(x => x.on.render.node);
+    const promise = task.then(x => x.render.node);
 
-    this.state.render.node
-      .then(async node => {
+    this.state.hooks.after.render.node.push(
+      async node => {
         const target = node.querySelector(`#${id}`);
         target.insertAdjacentHTML("afterEnd", id);
         //target.insertAdjacentElement("afterEnd", await promise);
         target.parentNode.removeChild(target);
-      })
+      }
+    )
 
-    return `<template id="${id}"></template>`;
+    this.append(`<oxytpl id="${id}"></oxytpl>`);
   }
 }
 
@@ -63,17 +64,23 @@ class template_instance_state {
     };
 
     const create_promise = () => {
-      let before = [], after = [];
+      const before = [_ => console.log('before', _)], after = [_ => console.log('after', _)];
+
+      const unwrap = (arr, _) => arr.map(x => x(_));
 
       let r;
       const p = new Promise(_ => r = _)
-        .then(x => Promise.all(after).then(_ => x))
+        .then(x => Promise
+          .all(unwrap(after, x))
+          .then(_ => x)
+        )
 
       const run = (_) => 
-        Promise.all(before)
+        Promise
+          .all(unwrap(before, _))
           .then(r(_));
 
-      return [p, run];
+      return [p, run, {before, after}];
     }
 
     const recursive = (obj) => {
@@ -94,7 +101,7 @@ class template_instance_state {
         if (v !== null) 
           ({on, handle, hooks} = recursive(v));
         else if (typeof v == 'object')
-          [on, handle] = create_promise();
+          [on, handle, hooks] = create_promise();
 
         
         [ret.on[k], ret.handle[k], ret.hooks.before[k], ret.hooks.after[k]] =
@@ -133,7 +140,7 @@ class template_instance {
   }
 
   context(name, args) {
-    const context = new template_context(this.getState(), name, args);
+    const context = new template_context(this.state, name, args);
 
     return new Proxy(context, {
       get: (t, p) => {
