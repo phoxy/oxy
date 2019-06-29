@@ -1,17 +1,20 @@
 version: '3.2'
 services:
   gw:
-    build: .docker/nginx-br
-    image: oxyjs/nginx-br:latest
+    build: .docker/proxy-gw
+    image: oxyjs/proxy-gateway:latest
     volumes:
-    - ./.docker/nginx-br/default.conf:/etc/nginx/conf.d/default.conf
+    - ./.docker/proxy-gw/default.conf:/etc/nginx/conf.d/default.conf
     ports:
     - 80:80
   oxy:
-    image: nginx:alpine
+    build:
+      dockerfile: .docker/proxy-oxy/Dockerfile
+      context: .
+    image: oxyjs/proxy-oxy:latest
     volumes:
-    - ./.docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-    - ./oxy:/app/assets/oxy:ro
+    - ./.docker/proxy-oxy/default.conf:/etc/nginx/conf.d/default.conf
+    - ./oxy:/oxy/assets/oxy:ro
   frontend:
     image: nginx:alpine
     volumes:
