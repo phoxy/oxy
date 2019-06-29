@@ -1,9 +1,12 @@
 class template_context {
   buffer = [];
   name;
+  state;
 
-  constructor(name, args) {
+  constructor(state, name, args) {
     this.name = name;
+    this.state = state;
+    state.childs = 0;
   }
 
   append(text) {
@@ -26,18 +29,21 @@ class template_context {
   }
 
   addTemplate(address, args = {}) {
-    return;
+    const genTemplId = address => `${this.name}_${address.replace('/', '_')}_${this.state.childs++}`;
+    const id = genTemplId(address);
+
     const task = oxy.tpl.render(address, args);
-    const promise = task.then(x => x.on.render.html);
+    const promise = task.then(x => x.on.render.node);
 
-    const shadowHost = document.createElement(`${address.replace('/', '-')}`);
-    const shadowRoot = shadowHost.attachShadow({mode: 'open'});
+    this.state.render.node
+      .then(async node => {
+        const target = node.querySelector(`#${id}`);
+        target.insertAdjacentHTML("afterEnd", id);
+        //target.insertAdjacentElement("afterEnd", await promise);
+        target.parentNode.removeChild(target);
+      })
 
-    const shadow = promise.then(html => 
-      shadowRoot.appendChild(html)  
-    );
-
-    this.dom.appendChild(shadowHost);
+    return `<template id="${id}"></template>`;
   }
 }
 
@@ -57,36 +63,61 @@ class template_instance_state {
     };
 
     const create_promise = () => {
-      let run;
-      let p = new Promise(r => run = r);
+      let before = [], after = [];
+
+      let r;
+      const p = new Promise(_ => r = _)
+        .then(x => Promise.all(after).then(_ => x))
+
+      const run = (_) => 
+        Promise.all(before)
+          .then(r(_));
+
       return [p, run];
     }
 
     const recursive = (obj) => {
-      let ret = {on: {}, handle: {}};
+      const ret = {
+        on: {},
+        handle: {},
+        hooks: {
+          before: {},
+          after: {},
+        }
+      };
 
       for (let k in obj) {
         const v = obj[k];
-        let on, handle;
+
+        let on, handle, hooks = {after: [], before: []};
+
         if (v !== null) 
-          [on, handle] = recursive(v);
-        else
+          ({on, handle, hooks} = recursive(v));
+        else if (typeof v == 'object')
           [on, handle] = create_promise();
+
         
-        [ret.on[k], ret.handle[k]] = [on, handle]; 
+        [ret.on[k], ret.handle[k], ret.hooks.before[k], ret.hooks.after[k]] =
+          [on, handle, hooks.before, hooks.after];
       }
 
-      return [ret.on, ret.handle];
+      return ret;
     }
 
-    [this.on, this.handle] = recursive(on);
+    const ret = recursive(on);
+    this.on = ret.on;
+    this.handle = ret.handle;
+    this.hooks = ret.hooks;
   }
 
   run() {
-    this.handle.render.start();
+    Promise.all(this.hooks.before.render.start)
+      .then(this.handle.render.start())
 
     return this.on;
   }
+
+  // todo proxy read only access to user state
 }
 
 class template_instance {
@@ -97,8 +128,12 @@ class template_instance {
     this.init(context, functor);
   }
 
+  getState() {
+    return this.state.on;
+  }
+
   context(name, args) {
-    const context = new template_context(name, args);
+    const context = new template_context(this.getState(), name, args);
 
     return new Proxy(context, {
       get: (t, p) => {
