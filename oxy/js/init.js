@@ -43,7 +43,7 @@ class oxy_loader {
   }
 
   async version() {
-    if (this.oxy_version)
+    if (typeof this.oxy_version != 'undefined')
       return await this.oxy_version;
     if (window.oxy_version)
       return window.oxy_version;
