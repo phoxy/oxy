@@ -13,8 +13,13 @@ class template_context {
     return resolved.join(`\n`);
   }
 
-  addTemplate(address) {
-    this.append(`TODO: addTemplate ${address}`);
+  addTemplate(address, args = {}) {
+    const task = oxy.tpl.render(address, args);
+    const promise = task.then(x => x.on.render.html);
+
+    this.append(promise);
+
+    return `<!-- addTemplate ${address} -->`;
   }
 }
 
@@ -176,7 +181,7 @@ export class tpl {
       ].join(`;`);
     }
 
-    chunks[0] = `=${chunks[0]}`;
+    chunks[0] = `=\`${chunks[0]}\``;
     const compiled = chunks.map(x => process(x));
 
     console.log(compiled);
