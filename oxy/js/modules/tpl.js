@@ -198,16 +198,30 @@ class template_functor {
 }
 
 export class tpl {
-  async render(address, args = {}) {
-    const code = await oxy.loader.rest(`tpl/${address}.tpl`);
-    const name = address.replace(/[^\w\d]/g, `_`);
+  compile_cache = {};
 
-    const compiled = await this.compile(code);
-    const template = new template_functor(name, compiled);
+  async render(address, args = {}) {
+    const template = await this.getFunctor(address);
 
     const instance = template.instance(args);
 
     return instance.run();
+  }
+
+  async getFunctor(address) {
+    const name = address.replace(/[^\w\d]/g, `_`);
+    if (typeof this.compile_cache[name] == 'undefined') {
+      this.compile_cache[name] = Promise.resolve()
+        .then(async _ => {
+          const code = await oxy.loader.rest(`tpl/${address}.tpl`);
+          const compiled = await this.compile(code);
+          const template = new template_functor(name, compiled);
+
+          return this.compile_cache[name] = template;
+        })
+    }
+      
+    return this.compile_cache[name];
   }
 
   async compile(code) {
