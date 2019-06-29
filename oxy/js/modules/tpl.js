@@ -124,14 +124,25 @@ export class tpl {
   }
 
   async compile(code) {
-    let chunks = code.split(`{{`);
+    const chunks = code.split(`{{`);
 
     if (chunks.find(x => x.includes(`{{`)))
       throw new Error(`Unexpected '{{' found, '}}' expected.`);
 
-    const escapeHTML = x => x; // todo
+    const escapeHTML = x => {
+      const dictionary = [
+        ['&', '&amp;'],
+        ['<', '&lt;'],
+        ['>', '&gt;'],
+      ];
+      const map = Object.fromEntries(dictionary);
+      const keys = Object.keys(map);
+      const reg = new RegExp(`[${keys.join('')}]`, 'g');
 
-    const echo = x => x == '' ? '' : `this.append('${x}')`;
+      return x.replace(reg, ch => map[ch] || ch);
+    }
+
+    const echo = x => x == '' ? '' : `this.append(${x})`;
 
     const echoEscaped = x => echo(escapeHTML(x));
 
@@ -161,8 +172,8 @@ export class tpl {
 
       return [
         modes[mode](insideBrackets),
-        echo(outsideBrackets),
-      ].join(``);
+        echo(`\`${outsideBrackets}\``),
+      ].join(`;`);
     }
 
     chunks[0] = `=${chunks[0]}`;
