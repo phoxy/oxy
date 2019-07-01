@@ -38,14 +38,121 @@ class template_context {
     this.state.hooks.after.render.node.push(
       async node => {
         const target = node.querySelector(`#${id}`);
-        target.insertAdjacentElement("afterEnd", await promise);
-        target.parentNode.removeChild(target);
+
+        const result = await promise;
+        // Align select and update in different frames
+        await oxy.loader.DOMUpdateTimeslot();
+        target.parentNode.replaceChild(result, target);
       }
     )
 
     this.append(`<oxytpl id="${id}"></oxytpl>`);
   }
 }
+
+class promise_with_hooks extends Promise {
+  before = [];
+  after = [];
+  contructed = false;
+  actionPromise;
+  actionDoneCb;
+  returnPromise;
+
+  init() {
+    if (this.contructed)
+      return;
+
+    this.actionPromise = new Promise(_ => this.actionDoneCb = _);
+
+    const unwrap = (arr, arg) => arr.map(f => Promise.resolve(arg).then(f));
+
+    const p = this.actionPromise
+      .then(x => Promise
+        .all(unwrap(after, x))
+        .then(_ => x)
+      )
+
+    const run = (_) => 
+      Promise
+        .all(unwrap(before, _))
+        .then(r(_));
+
+    this.returnPromise = run;
+  }
+
+  then() {
+    return this.returnPromise
+  }
+
+
+}
+
+class template_instance_state_factory {
+  warm_promises = [];
+  target = 100;
+  baking;
+
+  constructor() {
+    const compiler_trigger = 1E+4;
+    for (let i = 0; i < compiler_trigger; i++)
+      this.warp_promise();
+
+    this.start_baking();
+  }
+
+  start_baking() {
+    if (this.baking)
+      return;
+
+    const loop = () => {
+      this.warp_promise();
+
+      if (this.warm_promises.length < this.target)
+        requestIdleCallback(loop);
+      else
+        this.baking = false;
+      console.log('promises', this.warm_promises.length);
+    }
+
+    loop();
+    this.baking = true;
+  }
+
+  create_promise() {
+    if (this.warm_promises.length < this.target / 2)
+      this.start_baking();
+
+    if (this.warm_promises.length)
+      return this.warm_promises.pop();
+
+    return this.raw_create_promise();
+  }
+
+  warp_promise() {
+    this.warm_promises.push(this.raw_create_promise());
+  }
+
+  raw_create_promise() {
+    const before = [], after = [];
+
+    const unwrap = (arr, arg) => arr.map(f => Promise.resolve(arg).then(f));
+
+    let r;
+    const p = new Promise(_ => r = _)
+      .then(x => Promise
+        .all(unwrap(after, x))
+        .then(_ => x)
+      )
+
+    const run = (_) => 
+      Promise
+        .all(unwrap(before, _))
+        .then(r(_));
+
+    return [p, run, {before, after}];
+  }
+}
+const states_factory = new template_instance_state_factory();
 
 class template_instance_state {
   constructor() {
@@ -63,9 +170,11 @@ class template_instance_state {
     };
 
     const create_promise = () => {
+      return states_factory.create_promise();
+
       const before = [], after = [];
 
-      const unwrap = (arr, _) => arr.map(x => x(_));
+      const unwrap = (arr, arg) => arr.map(f => Promise.resolve(arg).then(f));
 
       let r;
       const p = new Promise(_ => r = _)
