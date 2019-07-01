@@ -6,6 +6,7 @@ class template_context {
   constructor(state, name, args) {
     this.name = name;
     this.state = state;
+    this.args = args;
     state.childs = 0;
   }
 
@@ -263,7 +264,7 @@ class template_instance {
   init(context, functor) {
     this.state.on.render.start
       .then(_ => {
-        const last_output = functor.eval.call(context);
+        const last_output = functor.eval.call(context, context.args);
 
         if (last_output)
           context.append(last_output);
@@ -318,7 +319,7 @@ class template_functor {
     
     const inject =
       [
-        `return function tpl_${name}() {`,
+        `return function tpl_${name}(args) {`,
         code,
         `}`
       ].join(`\n`);
@@ -386,7 +387,7 @@ export class tpl {
         // {{ /* regular javascript code */ }}
         ' ': x => x,
         // {{+ /* append cascade template */ }}
-        '+': x => ['this.addTemplate(`${', x, '}`)'].join(' '),
+        '+': x => ['this.addTemplate(', x, ')'].join(' '),
         // {{< /* echo javascript code result, escaped */ }}
         '<': x => echoEscaped(x),
         // {{= /* echo javascript code result with possible XSS (raw as it is) */}}
