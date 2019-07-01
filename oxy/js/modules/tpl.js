@@ -43,10 +43,11 @@ class template_context {
       async node => {
         const target = node.querySelector(`#${id}`);
 
-        const result = await promise;
+        promise.then(async result => {
+          await oxy.loader.DOMUpdateTimeslot();
+          target.parentNode.replaceChild(result, target)
+        })
         // Align select and update in different frames
-        await oxy.loader.DOMUpdateTimeslot();
-        target.parentNode.replaceChild(result, target);
       }
     )
 
