@@ -15,8 +15,11 @@ class template_context {
   }
 
   async html() {
+    if (this.html_cache)
+      return this.html_cache;
+
     const resolved = await Promise.all(this.buffer)
-    return resolved.join(`\n`);
+    return this.html_cache = resolved.join(`\n`);
   }
 
   async node() {
@@ -64,7 +67,7 @@ class promise_with_hooks extends Promise {
 
     this.actionPromise = new Promise(_ => this.actionDoneCb = _);
 
-    const unwrap = (arr, arg) => arr.map(f => Promise.resolve(arg).then(f));
+    const unwrap = (arr, arg) => arr.map(f => f(arg)); //arr.map(f => Promise.resolve(arg).then(f));
 
     const p = this.actionPromise
       .then(x => Promise
@@ -93,10 +96,6 @@ class template_instance_state_factory {
   baking;
 
   constructor() {
-    const compiler_trigger = 1E+4;
-    for (let i = 0; i < compiler_trigger; i++)
-      this.warp_promise();
-
     this.start_baking();
   }
 
@@ -111,7 +110,6 @@ class template_instance_state_factory {
         requestIdleCallback(loop);
       else
         this.baking = false;
-      console.log('promises', this.warm_promises.length);
     }
 
     loop();
@@ -135,7 +133,7 @@ class template_instance_state_factory {
   raw_create_promise() {
     const before = [], after = [];
 
-    const unwrap = (arr, arg) => arr.map(f => Promise.resolve(arg).then(f));
+    const unwrap = (arr, arg) => arr.map(f => f(arg)); //arr.map(f => Promise.resolve(arg).then(f));
 
     let r;
     const p = new Promise(_ => r = _)
@@ -275,8 +273,31 @@ class template_instance {
       .then(this.state.handle.render.buffer);
 
     this.state.on.render.buffer
-      .then(x => context.node())
-      .then(this.state.handle.render.node);
+      .then(_ => context.html())
+      .then(this.state.handle.render.html)
+
+    function hashCode(s) {
+        let h;
+        for(let i = 0; i < s.length; i++) 
+              h = Math.imul(31, h) + s.charCodeAt(i) | 0;
+    
+        return h;
+    }
+
+    this.state.on.render.html
+      .then((async html => {
+        const hash = hashCode(html);
+        if (functor.cache.html != hash)
+        {  
+          const node = context.node();
+          functor.cache.html = hash;
+          functor.cache.node = node.then(node => functor.cache.node = node);
+        }
+
+        const node = await functor.cache.node;
+        return node.cloneNode(true);  
+      }))
+      .then(this.state.handle.render.node)
 
     return this;
   }
@@ -287,6 +308,10 @@ class template_instance {
 }
 
 class template_functor {
+  cache = {
+    html: null,
+    node: null,
+  };
   
   constructor(name, code) {
     this.name = name;
