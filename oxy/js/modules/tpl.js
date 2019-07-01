@@ -336,12 +336,56 @@ class template_functor {
 export class tpl {
   compile_cache = {};
 
+  sheduleQueue = [];
+  rendering = 0;
+  limit = 100;
+
+  async renderSlot() {
+    if (!this.sheduleQueue.length && this.rendering < this.limit)
+      return this.rendering++;
+
+    let trigger;
+    const p = new Promise(_ => trigger = () => _(this.rendering++));
+
+    if (this.sheduleQueue.length) {
+      this.sheduleQueue.push(trigger);
+      return p;
+    }
+
+    // CPU overused, shedule on next free timeslot
+    this.sheduleQueue.push(trigger);
+    const idleLoop = () => {
+      const [toProcess, reshedule] = [
+        this.sheduleQueue.slice(0, 1000),
+        this.sheduleQueue.slice(1000),
+      ];
+
+      this.sheduleQueue = reshedule;
+
+      toProcess.map(f => f());
+
+      if (this.sheduleQueue.length)
+        requestIdleCallback(idleLoop);
+    }
+
+    requestIdleCallback(idleLoop);
+
+    return p;
+  }
+
   async render(address, args = {}) {
+    await this.renderSlot();
+
     const template = await this.getFunctor(address);
 
     const instance = template.instance(args);
 
-    return instance.run();
+    const handles = instance.run();
+
+    handles.render.node
+      .then(() => this.rendering--);
+
+    return handles;
   }
 
   async getFunctor(address) {
