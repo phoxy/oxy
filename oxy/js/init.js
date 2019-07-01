@@ -15,7 +15,7 @@ class oxy_loader {
     }
 
     try {
-      return window.fetch(url, fetch_params)
+      return fetch(url, fetch_params)
         .then((data, reject) => data.ok ? data.text() : reject(data));
     } catch (e) {
       // request failed
@@ -35,10 +35,28 @@ class oxy_loader {
     return this.rest(await this.resourseUrl(url));
   }
 
+  dom_update_queue;
+
   DOMUpdateTimeslot() {
+
+    if (!this.dom_update_queue) {
+      this.dom_update_queue = [];
+      requestAnimationFrame(() => {
+        const queue = this.dom_update_queue;
+        this.dom_update_queue = undefined;
+
+        const start = new Date();
+        queue.map(cb => cb(document))
+        const end = new Date();
+        console.log('frame', end - start, 'ms', `(${queue.length})`);
+
+      }) 
+    }
+    
     let resolve;
     const promise = new Promise(r => resolve = r)
-    requestAnimationFrame(() => resolve(document))
+
+    this.dom_update_queue.push(resolve);
     return promise;
   }
 
@@ -138,6 +156,7 @@ class oxy_loader {
   })
 
   window.oxy.loader = loader;
+  loader.oxy_version = "dev";
   loader.loadStage('loader_starts');
 
   window.oxy.app.start();
