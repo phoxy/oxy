@@ -2,12 +2,33 @@ class template_context {
   buffer = [];
   name;
   state;
+  childs = [];
 
   constructor(state, name, args) {
     this.name = name;
     this.state = state;
     this.args = args;
     state.childs = 0;
+
+    this.state.hooks.after.render.node.push(node => {
+      this.domCB.map(cb => cb(node))
+    })
+
+    this.state.hooks.after.render.node.push(node => {
+      if (!this.dollarCB)
+        return;
+
+      const root = typeof $ !== 'undefined' ? $(node) : null;
+      this.dollarCB.map(cb => cb(root))
+    })
+
+    this.state.hooks.after.render.node.push(async node => {
+      if (!this.domResolvedCB)
+        return;
+
+      await Promise.all(this.childs);
+      this.domResolvedCB.map(cb => cb(node))
+    });
   }
 
   append(text) {
@@ -39,6 +60,8 @@ class template_context {
     const task = oxy.tpl.render(address, args);
     const promise = task.then(x => x.render.node);
 
+    this.childs.push(task);
+
     this.state.hooks.after.render.node.push(
       async node => {
         const target = node.querySelector(`#${id}`);
@@ -52,6 +75,25 @@ class template_context {
     )
 
     this.append(`<oxytpl id="${id}"></oxytpl>`);
+  }
+
+  domCB = [];
+  dom(cb) {
+    this.domCB.push(cb);
+  }
+
+  dollarCB = [];
+  dollar(cb) {
+    this.dollarCB.push(cb);
+  }
+
+  domResolvedCB = [];
+  domResolved(cb) {
+    this.domResolvedCB.push(cb);
+  }
+
+  script(addr) {
+    this.state.hooks.before.render.node.push(() => oxy.tpl.require(addr));
   }
 }
 
@@ -404,6 +446,18 @@ export class tpl {
     return this.compile_cache[name];
   }
 
+  require(address) {
+    const script = document.createElement('script')
+    script.type = 'text/javascript';
+    script.src = address;
+    script.source = name;
+
+    oxy.loader.DOMUpdateTimeslot()
+      .then(document.body.appendChild(script));
+
+    return new Promise(_ => script.onload = _);
+  }
+
   async compile(name, code) {
     const chunks = code.split(`{{`);
 
@@ -427,7 +481,7 @@ export class tpl {
 
     const echoEscaped = x => echo(escapeHTML(x));
 
-    const style = (css) => {
+    const css = (css) => {
       const detachedLoad = async () => {
         const isLink = !css.match(/{/);
           let link;
@@ -453,6 +507,18 @@ export class tpl {
       echo(`'<!-- css applied -->'`);
     }
 
+    const first = cb => `this.dom(root => {${cb}})`;
+
+    const dollar = cb => `this.dollar(root => {${cb}})`;
+
+    const all = cb => `/* SLOW BY DESIGN */ this.domResolved(root => {${cb}})`;
+
+    const script = link => `this.script(${link})`
+
+    let required = [];
+    const require = link => required.push(link); 
+    
+
     const process = chunk => {
       const modes = {
         // {{ /* regular javascript code */ }}
@@ -464,7 +530,19 @@ export class tpl {
         // {{= /* echo javascript code result with possible XSS (raw as it is) */}}
         '=': x => echo(x),
         // {{s /* css resource file link or inline (persistent) css code */ }}
-        's': x => style(x),
+        'c': x => css(x),
+        // {{d /* callback on when appended on the page */ }}
+        // 'd': x => displayed(x),
+        // {{: /* when first node is ready */ }}
+        ':': x => first(x),
+        // {{; /* when all nodes is ready */ }}
+        ';': x => all(x), 
+        // {{$ /* first node but wrapped with jQuery alike interface */ }}
+        '$': x => dollar(x),
+        // {{s /* script that expected to be at time of elements appear */ }}
+        's': x => script(x),
+        // {{r /* script that required for rendering */ }}
+        'r': x => require(x),
       };
 
       let mode = chunk[0];
@@ -487,6 +565,8 @@ export class tpl {
 
     chunks[0] = `=\`${chunks[0]}\``;
     const compiled = chunks.map(x => process(x));
+
+    await Promise.all(required.map(link => this.require(link)))
 
     return compiled.join(`\n`);
   }
