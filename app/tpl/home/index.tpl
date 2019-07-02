@@ -1,9 +1,9 @@
 <h1>Hello world {{< args.i }}</h1>
 
 
-{{s style.css }}
-{{s
+{{c style.css }}
+{{c
 
-body { color: red; }
+body { color: blue; }
 
 }}

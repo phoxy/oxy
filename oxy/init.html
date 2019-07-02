@@ -29,7 +29,9 @@
       opacity: calc(5 - 5 * var(--oxy-load-persentage) / 100);
       background-color: #ffffff;
       transition-delay: 0.5s;
-      transition: opacity 1s;
+      transition: all 1s;
+
+      z-index: calc(99 - var(--oxy-load-persentage));
 
       --spins: 4;
     }

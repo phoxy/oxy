@@ -5,3 +5,17 @@
 {{ } }}
 
 </div>
+
+{{:
+console.log('just me', root);
+}}
+
+{{;
+console.log('me & childs', root);
+}}
+
+
+{{$
+console.log('me inside jquery', root);
+}}
+

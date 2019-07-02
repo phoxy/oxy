@@ -108,7 +108,7 @@ class promise_with_hooks extends Promise {
   init() {
     if (this.contructed)
       return;
-
+/*
     this.actionPromise = new Promise(_ => this.actionDoneCb = _);
 
     const unwrap = (arr, arg) => arr.map(f => f(arg)); //arr.map(f => Promise.resolve(arg).then(f));
@@ -119,11 +119,13 @@ class promise_with_hooks extends Promise {
         .then(_ => x)
       )
 
+    let debug;
     const run = (_) => 
       Promise
-        .all(unwrap(before, _))
+        .all(debug = unwrap(before, _))
+        .then(console.log(debug))
         .then(r(_));
-
+*/
     this.returnPromise = run;
   }
 
@@ -189,7 +191,8 @@ class template_instance_state_factory {
     const run = (_) => 
       Promise
         .all(unwrap(before, _))
-        .then(r(_));
+        .then(x => r(_));
+  
 
     return [p, run, {before, after}];
   }
@@ -452,10 +455,12 @@ export class tpl {
     script.src = address;
     script.source = name;
 
+    const p = new Promise(_ => script.onload = _);
+
     oxy.loader.DOMUpdateTimeslot()
       .then(document.body.appendChild(script));
 
-    return new Promise(_ => script.onload = _);
+    return p;
   }
 
   async compile(name, code) {
@@ -513,7 +518,7 @@ export class tpl {
 
     const all = cb => `/* SLOW BY DESIGN */ this.domResolved(root => {${cb}})`;
 
-    const script = link => `this.script(${link})`
+    const script = link => `this.script('${link}')`
 
     let required = [];
     const require = link => required.push(link); 
