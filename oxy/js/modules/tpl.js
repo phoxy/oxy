@@ -394,7 +394,7 @@ export class tpl {
       this.compile_cache[name] = Promise.resolve()
         .then(async _ => {
           const code = await oxy.loader.rest(`tpl/${address}.tpl`);
-          const compiled = await this.compile(code);
+          const compiled = await this.compile(name, code);
           const template = new template_functor(name, compiled);
 
           return this.compile_cache[name] = template;
@@ -404,7 +404,7 @@ export class tpl {
     return this.compile_cache[name];
   }
 
-  async compile(code) {
+  async compile(name, code) {
     const chunks = code.split(`{{`);
 
     if (chunks.find(x => x.includes(`{{`)))
@@ -427,6 +427,32 @@ export class tpl {
 
     const echoEscaped = x => echo(escapeHTML(x));
 
+    const style = (css) => {
+      const detachedLoad = async () => {
+        const isLink = !css.match(/{/);
+          let link;
+    
+          if (!isLink) {
+            const blob = new Blob([css], {type: 'text/css'});
+            link = URL.createObjectURL(blob);
+          }
+          else {
+            link = await oxy.loader.resourseUrl(css.trim());
+          }
+    
+          const tag = document.createElement('link');
+          tag.rel = 'stylesheet';
+          tag.href = link;
+          tag.source = name;
+    
+          await oxy.loader.DOMUpdateTimeslot()
+          document.body.appendChild(tag);
+      }
+
+      detachedLoad();
+      echo(`'<!-- css applied -->'`);
+    }
+
     const process = chunk => {
       const modes = {
         // {{ /* regular javascript code */ }}
@@ -437,6 +463,8 @@ export class tpl {
         '<': x => echoEscaped(x),
         // {{= /* echo javascript code result with possible XSS (raw as it is) */}}
         '=': x => echo(x),
+        // {{s /* css resource file link or inline (persistent) css code */ }}
+        's': x => style(x),
       };
 
       let mode = chunk[0];
