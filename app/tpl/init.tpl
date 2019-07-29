@@ -1,4 +1,3 @@
-{{+ `canvas` }}
 {{+ `frame/index` }}
 
 <test>

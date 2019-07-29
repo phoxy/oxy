@@ -4,8 +4,8 @@ class template_context {
   state;
   childs = [];
 
-  constructor(state, name, args) {
-    this.name = name;
+  constructor(state, opts, args) {
+    this.opts = opts;
     this.state = state;
     this.args = args;
     state.childs = 0;
@@ -41,7 +41,7 @@ class template_context {
       return this.html_cache;
 
     const resolved = await Promise.all(this.buffer)
-    return this.html_cache = resolved.join(`\n`);
+    return this.html_cache = resolved.map(String).join(`\n`);
   }
 
   async node() {
@@ -54,7 +54,13 @@ class template_context {
   }
 
   addTemplate(address, args = {}) {
-    const genTemplId = address => `${this.name}_${address.replace('/', '_')}_${this.state.childs++}`;
+    if (address[0] != '/') {
+      // relative address
+      const location = this.opts.address.replace(/^(?:(.*\/)|.*).*$/, '$1');
+      address = `${location}${address}`;
+    }
+
+    const genTemplId = address => `${this.opts.name}_${address.replace(/[^\w\d]/g, `_`)}_${this.state.childs++}`;
     const id = genTemplId(address);
 
     const task = oxy.tpl.render(address, args);
@@ -94,6 +100,19 @@ class template_context {
 
   script(addr) {
     this.state.hooks.before.render.node.push(() => oxy.tpl.require(addr));
+  }
+
+  escapeHTML(x) {
+    const dictionary = [
+      ['&', '&amp;'],
+      ['<', '&lt;'],
+      ['>', '&gt;'],
+    ];
+    const map = Object.fromEntries(dictionary);
+    const keys = Object.keys(map);
+    const reg = new RegExp(`[${keys.join('')}]`, 'g');
+
+    return String(x).replace(reg, ch => map[ch] || ch);
   }
 }
 
@@ -283,8 +302,8 @@ class template_instance_state {
 class template_instance {
   state = new template_instance_state();
 
-  constructor(name, args, functor) {
-    const context = this.context(name, args);
+  constructor(opts, args, functor) {
+    const context = this.context(opts, args);
     this.init(context, functor);
   }
 
@@ -292,8 +311,8 @@ class template_instance {
     return this.state.on;
   }
 
-  context(name, args) {
-    const context = new template_context(this.state, name, args);
+  context(opts, args) {
+    const context = new template_context(this.state, opts, args);
 
     return new Proxy(context, {
       get: (t, p) => {
@@ -360,12 +379,12 @@ class template_functor {
     node: null,
   };
   
-  constructor(name, code) {
-    this.name = name;
+  constructor(opts, code) {
+    this.opts = opts;
     
     const inject =
       [
-        `return function tpl_${name}(args) {`,
+        `return function tpl_${opts.name}(args) {`,
         code,
         `}`
       ].join(`\n`);
@@ -374,7 +393,7 @@ class template_functor {
   }
 
   instance(args) {
-    return new template_instance(this.name, args, this);
+    return new template_instance(this.opts, args, this);
   }
 }
 
@@ -440,7 +459,7 @@ export class tpl {
         .then(async _ => {
           const code = await oxy.loader.rest(`tpl/${address}.tpl`);
           const compiled = await this.compile(name, code);
-          const template = new template_functor(name, compiled);
+          const template = new template_functor({address, name}, compiled);
 
           return this.compile_cache[name] = template;
         })
@@ -469,22 +488,9 @@ export class tpl {
     if (chunks.find(x => x.includes(`{{`)))
       throw new Error(`Unexpected '{{' found, '}}' expected.`);
 
-    const escapeHTML = x => {
-      const dictionary = [
-        ['&', '&amp;'],
-        ['<', '&lt;'],
-        ['>', '&gt;'],
-      ];
-      const map = Object.fromEntries(dictionary);
-      const keys = Object.keys(map);
-      const reg = new RegExp(`[${keys.join('')}]`, 'g');
-
-      return x.replace(reg, ch => map[ch] || ch);
-    }
-
     const echo = x => x == '' ? '' : `this.append(${x})`;
 
-    const echoEscaped = x => echo(escapeHTML(x));
+    const echoEscaped = x => echo(`this.escapeHTML(${x})`);
 
     const css = (css) => {
       const detachedLoad = async () => {
