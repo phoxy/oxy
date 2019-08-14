@@ -13,9 +13,9 @@ Test
 { {r https://code.jquery.com/jquery-3.4.1.slim.min.js } }
 
 {{
-oxy.app.displayState = state => {
+oxy.app.displayState = async state => {
 
-  const instance = await oxy.tpl.render(startTemplate);
+  const instance = await oxy.tpl.render(state.url);
   const node = await instance.render.node;
 
   await oxy.loader.DOMUpdateTimeslot();
