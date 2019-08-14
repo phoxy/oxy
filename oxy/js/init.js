@@ -90,25 +90,48 @@ class oxy_loader {
   static asyncChain(source_promise) {
     const magicFunction = () => source_promise;
 
-    return new Proxy(magicFunction, {
+    const state = {
+      get: [],
+    }
+
+    const asyncAccess = async (source, remain) => {
+      source = await source;
+      while (true) {
+        const resolved = source;
+        if (!remain.length)
+          return resolved;
+
+        const key = remain.shift();
+        const field = resolved[key];
+
+        source = field;
+      }
+    };
+
+    const unwrap = () => {
+      const resolve = source_promise.then(source => asyncAccess(source, state.get))
+      return resolve;
+    }
+
+    const proxy = new Proxy(magicFunction, {
       get: (t, key) => {
-        if (key == 'then')
-          return source_promise.then.bind(source_promise);
+        console.log(`get ${key}`);
+        if (key == 'then') {
+          const resolve = unwrap();
+          return resolve.then.bind(resolve);
+        }
 
-        const result_promise = source_promise.then(x => x[key])
-        //return result_promise;
-        return oxy_loader.asyncChain(result_promise);
+        state.get.push(key);
+        return proxy;
+      },
+      apply: async (a, b, args, d) => {
+        const method = state.get.pop();
+        const resolve = await unwrap();
+        return resolve[method].apply(resolve, args);
       }
-      ,
-      apply: (context, thisArg, argumentsList) => {
-        let target = source_promise;
+    });
 
-
-        return target.then(targetFunc =>
-          targetFunc.apply(thisArg, argumentsList)
-        );
-      }
-    })
+    return proxy;
   }
 
   spinStep() {
