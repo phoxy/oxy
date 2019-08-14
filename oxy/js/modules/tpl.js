@@ -27,7 +27,8 @@ class template_context {
         return;
 
       await Promise.all(this.childs);
-      this.domResolvedCB.map(cb => cb(node))
+      let cb = this.domResolvedCB.map(cb => cb(node))
+      await Promise.all(cb);
     });
   }
 
@@ -102,7 +103,7 @@ class template_context {
     this.state.hooks.before.render.node.push(() => oxy.tpl.require(addr));
   }
 
-  escapeHTML(x) {
+  async escapeHTML(x) {
     const dictionary = [
       ['&', '&amp;'],
       ['<', '&lt;'],
@@ -112,7 +113,8 @@ class template_context {
     const keys = Object.keys(map);
     const reg = new RegExp(`[${keys.join('')}]`, 'g');
 
-    return String(x).replace(reg, ch => map[ch] || ch);
+    const str = String(await x);
+    return str.replace(reg, ch => map[ch] || ch);
   }
 }
 
@@ -328,8 +330,8 @@ class template_instance {
 
   init(context, functor) {
     this.state.on.render.start
-      .then(_ => {
-        const last_output = functor.eval.call(context, context.args);
+      .then(async _ => {
+        const last_output = await functor.eval.call(context, context.args);
 
         if (last_output)
           context.append(last_output);
@@ -365,6 +367,9 @@ class template_instance {
       }))
       .then(this.state.handle.render.node)
 
+    this.state.on.render.node
+      .then(this.state.handle.render.finished)
+
     return this;
   }
 
@@ -384,7 +389,7 @@ class template_functor {
     
     const inject =
       [
-        `return function tpl_${opts.name}(args) {`,
+        `return async function tpl_${opts.name}(args) {`,
         code,
         `}`
       ].join(`\n`);
