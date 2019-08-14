@@ -12,4 +12,17 @@ Test
 /* this going to be loaded BEFORE first render */
 { {r https://code.jquery.com/jquery-3.4.1.slim.min.js } }
 
+{{
+oxy.app.displayState = state => {
+
+  const instance = await oxy.tpl.render(startTemplate);
+  const node = await instance.render.node;
+
+  await oxy.loader.DOMUpdateTimeslot();
+  document.getElementById('oxy-default-render-place').appendChild(node);
+
+  console.log('start loading your state here')
+}
+
+}}
 

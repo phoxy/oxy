@@ -1,5 +1,11 @@
 export class app {
   async start() {
+    await this.loadMold();
+    window.onpopstate = e => oxy.app.restoreState(e.state)
+    oxy.app.restoreState(history.state);
+  }
+  
+  async loadMold() {
     const p = x => window.oxy.loader.loadStage(x);
 
     p('app_module_loaded');
@@ -20,5 +26,28 @@ export class app {
     document.getElementById('oxy-default-render-place').appendChild(node);
 
     // loader.loadStage('done');
+
+    return instance.render.finished;
   }
+
+  async commitState(state, title, url) {
+    window.history.pushState(state, state.title || title, url || state.url);
+    this.restoreState(state);
+  }
+
+  async rollbackState() {
+    window.history.go(-1);
+  }
+
+  async replaceState(state, title, url) {
+    window.history.replaceState(state, state.title || title, url || state.url);
+  }
+
+  async restoreState(state) {
+    if (!await this.displayState)
+      return console.log('Skipping state because displayState is undefined', state);
+    return this.displayState(state);
+  }
+
+
 }
