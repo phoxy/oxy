@@ -26,10 +26,19 @@ class template_context {
       if (!this.domResolvedCB)
         return;
 
-      await Promise.all(this.childs);
-      let cb = this.domResolvedCB.map(cb => cb(node))
+      const childs = await Promise.all(this.childs);
+      const nodes = childs.map(x => x.render.node);
+
+      await Promise.all(nodes);
+      const cb = this.domResolvedCB.map(cb => cb(node))
       await Promise.all(cb);
     });
+
+    this.state.hooks.before.render.finished.push(async _ => {
+      const childs = await Promise.all(this.childs);
+      const finished = childs.map(x => x.render.finished);
+      return Promise.all(finished);
+    })
   }
 
   append(text) {
@@ -386,12 +395,16 @@ class template_functor {
   
   constructor(opts, code) {
     this.opts = opts;
+
+    const resolveAddr = opts.address.replace(/\/[^\/]+\/\.\./g, "");
+    const sourceURL = `${location.origin}/ctpl/${resolveAddr}`.replace(/([^:])\/\//g, "$1/")
     
     const inject =
       [
         `return async function tpl_${opts.name}(args) {`,
         code,
-        `}`
+        `}`,
+        '//# sourceURL=' + sourceURL + '\n',
       ].join(`\n`);
 
     this.eval = new Function(inject)();
@@ -447,6 +460,7 @@ export class tpl {
 
     const template = await this.getFunctor(address);
 
+    args = await args;
     const instance = template.instance(args);
 
     const handles = instance.run();
@@ -462,7 +476,7 @@ export class tpl {
     if (typeof this.compile_cache[name] == 'undefined') {
       this.compile_cache[name] = Promise.resolve()
         .then(async _ => {
-          const code = await oxy.loader.rest(`tpl/${address}.tpl`);
+          const code = await oxy.loader.rest(`/tpl/${address}.tpl`);
           const compiled = await this.compile(name, code);
           const template = new template_functor({address, name}, compiled);
 

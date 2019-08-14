@@ -46,7 +46,10 @@ export class app {
   async restoreState(state) {
     if (!await this.displayState)
       return console.log('Skipping state because displayState is undefined', state);
-    return this.displayState(state);
+
+    state.title = (state.title || document.title).trim();
+    state.url = (state.url || location.pathname).trim();
+    return this.displayState(state, state.title, state.url);
   }
 
 
