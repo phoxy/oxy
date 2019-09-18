@@ -559,6 +559,14 @@ export class tpl {
       echo(`'<!-- css applied -->'`);
     }
 
+    const addTemplate = x => {
+      try { // pre fetch and pre compile
+        const args = Function(`return Array(${x})`).call();
+        this.getFunctor(args[0]);
+      } catch {}
+      return ['this.addTemplate(', x, ')'].join(' ');
+    };
+
     const first = cb => `this.dom(root => {${cb}})`;
 
     const dollar = cb => `this.dollar(root => {${cb}})`;
@@ -576,7 +584,7 @@ export class tpl {
         // {{ /* regular javascript code */ }}
         ' ': x => x,
         // {{+ /* append cascade template */ }}
-        '+': x => ['this.addTemplate(', x, ')'].join(' '),
+        '+': x => addTemplate(x),
         // {{< /* echo javascript code result, escaped */ }}
         '<': x => echoEscaped(x),
         // {{= /* echo javascript code result with possible XSS (raw as it is) */}}
