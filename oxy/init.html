@@ -12,7 +12,7 @@
 
   <script>
     if (location.hash)
-      history.replaceState({}, "", location.hash.substr(1));
+      history.replaceState(history.state || {}, "Loading...", location.hash.substr(1));
   </script>
 
   <style>
