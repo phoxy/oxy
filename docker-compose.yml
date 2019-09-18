@@ -7,7 +7,7 @@ services:
     - ./.docker/proxy-gw/default.conf:/etc/nginx/conf.d/default.conf
     ports:
     - 80:80
-  oxy:
+  proxy:
     build:
       dockerfile: .docker/proxy-oxy/Dockerfile
       context: .
@@ -21,3 +21,11 @@ services:
     - ./app:/usr/share/nginx/html:ro
   backend:
     image: nginx:alpine
+  redirect:
+    build: .docker/redirect
+    image: oxyjs/redirect:latest
+  oxy:
+    build:
+      dockerfile: .docker/oxy/Dockerfile
+      context: .
+    image: oxyjs/oxy:latest
