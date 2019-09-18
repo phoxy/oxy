@@ -1,6 +1,5 @@
 class template_context {
   buffer = [];
-  name;
   state;
   childs = [];
 
@@ -22,19 +21,19 @@ class template_context {
       this.dollarCB.map(cb => cb(root))
     })
 
-    this.state.hooks.after.render.node.push(async node => {
-      if (!this.domResolvedCB)
+    this.state.hooks.after.render.finished.push(async node => {
+      if (!this.domResolvedCB.length)
         return;
 
       const childs = await Promise.all(this.childs);
-      const nodes = childs.map(x => x.render.node);
+      const nodes = childs.map(x => x.render.finished);
 
       await Promise.all(nodes);
       const cb = this.domResolvedCB.map(cb => cb(node))
       await Promise.all(cb);
     });
 
-    this.state.hooks.before.render.finished.push(async _ => {
+    this.state.hooks.after.render.finished.push(async _ => {
       const childs = await Promise.all(this.childs);
       const finished = childs.map(x => x.render.finished);
       return Promise.all(finished);
@@ -51,13 +50,21 @@ class template_context {
       return this.html_cache;
 
     const resolved = await Promise.all(this.buffer)
-    return this.html_cache = resolved.map(String).join(`\n`);
+    return this.html_cache = resolved.map(String).join(``);
   }
 
   async node() {
     const html = await this.html();
-    const shadowHost = document.createElement(`oxytpl-${this.name}`);
-    shadowHost.innerHTML = html;
+
+    var template = document.createElement(`oxytpl-${this.opts.name}`);
+    template.innerHTML = html;
+    return template;
+    
+    //.childNodes
+    
+    const shadowHost = document.createElement(`oxytpl-${this.opts.name}`);
+    const shadowRoot = shadowHost.attachShadow({mode: 'open'});
+    shadowRoot.innerHTML = html;
 
     this.dom = shadowHost;
     return shadowHost;
@@ -74,19 +81,25 @@ class template_context {
     const id = genTemplId(address);
 
     const task = oxy.tpl.render(address, args);
-    const promise = task.then(x => x.render.node);
+    const promise = task.then(x => x.render.finished);
 
     this.childs.push(task);
+
+    let resolveTarget;
+    const target = new Promise(_ => resolveTarget = _)
+    
+    const resolveChild = Promise.all([promise, target])
+      .then(async ([node, target]) => {
+        await oxy.loader.DOMUpdateTimeslot();
+        target.parentNode.replaceChild(node, target);
+        // Align select and update in different frames
+      })
 
     this.state.hooks.after.render.node.push(
       async node => {
         const target = node.querySelector(`#${id}`);
-
-        promise.then(async result => {
-          await oxy.loader.DOMUpdateTimeslot();
-          target.parentNode.replaceChild(result, target)
-        })
-        // Align select and update in different frames
+        resolveTarget(target);
+        return resolveChild;
       }
     )
 
@@ -325,6 +338,8 @@ class template_instance {
   context(opts, args) {
     const context = new template_context(this.state, opts, args);
 
+    return context; // debugging, temporary no proxies
+
     return new Proxy(context, {
       get: (t, p) => {
         return t[p] || args[p];
@@ -338,46 +353,53 @@ class template_instance {
 
 
   init(context, functor) {
+    const nextTick = (v) => new Promise(_ => setInterval(() => _(v), 0));
+
+    const start = async _ => {
+      const last_output = await functor.eval.call(context, context.args);
+
+      if (last_output)
+        context.append(last_output);
+
+      this.state.handle.render.buffer(context.buffer)
+    }
+
     this.state.on.render.start
-      .then(async _ => {
-        const last_output = await functor.eval.call(context, context.args);
-
-        if (last_output)
-          context.append(last_output);
-
-        return context.buffer
-      })
-      .then(this.state.handle.render.buffer);
+      .then(_ => !start(_))
+    
 
     this.state.on.render.buffer
       .then(_ => context.html())
-      .then(this.state.handle.render.html)
+      .then(_ => !this.state.handle.render.html(_))
 
     function hashCode(s) {
-        let h;
-        for(let i = 0; i < s.length; i++) 
-              h = Math.imul(31, h) + s.charCodeAt(i) | 0;
+      let h = 0;
+      for(let i = 0; i < s.length; i++) 
+        h = Math.imul(31, h) + s.charCodeAt(i) | 0;
     
-        return h;
+      return h;
     }
 
     this.state.on.render.html
       .then((async html => {
         const hash = hashCode(html);
+        /*
         if (functor.cache.html != hash)
         {  
           const node = context.node();
           functor.cache.html = hash;
           functor.cache.node = node.then(node => functor.cache.node = node);
-        }
+        }*/
+        //if (functor.cache.html == hash)
+          functor.cache.node = context.node(functor.cache.html);
 
         const node = await functor.cache.node;
-        return node.cloneNode(true);  
+        return node; //.cloneNode(true);  
       }))
-      .then(this.state.handle.render.node)
+      .then(_ => !this.state.handle.render.node(_))
 
     this.state.on.render.node
-      .then(this.state.handle.render.finished)
+      .then(_ => !this.state.handle.render.finished(_))
 
     return this;
   }
@@ -455,13 +477,13 @@ export class tpl {
     return p;
   }
 
-  async render(address, args = {}) {
+  async render(address, args) {
     await this.renderSlot();
 
     const template = await this.getFunctor(address);
 
     args = await args;
-    const instance = template.instance(args);
+    const instance = template.instance(args || {});
 
     const handles = instance.run();
 
