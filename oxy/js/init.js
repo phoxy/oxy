@@ -82,9 +82,13 @@ class oxy_loader {
 
   async injectModule(module) {
     const url = await this.resourseUrl(`/assets/oxy/js/modules/${module}.js`);
-    let res = await import(url);
+    const res = await import(url);
 
-    return this.oxy[module] = new res[module];
+    const obj = new res[module]
+
+    return obj;
+
+    return this.oxy[module] = oxy_loader.asyncChain(Promise.resolve(obj));
   }
 
   static asyncChain(source_promise) {
