@@ -124,10 +124,10 @@ class oxy_loader {
         state.get.push(key);
         return proxy;
       },
-      apply: async (a, b, args, d) => {
+      apply: (a, b, args, d) => {
         const method = state.get.pop();
-        const resolve = await unwrap();
-        return resolve[method].apply(resolve, args);
+        const result = unwrap().then(resolve => resolve[method].apply(resolve, args))
+        return oxy_loader.asyncChain(result);
       }
     });
 
