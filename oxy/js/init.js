@@ -98,8 +98,18 @@ class oxy_loader {
       get: [],
     }
 
-    const asyncAccess = async (source, remain) => {
-      source = await source;
+    let resolved = false;
+    
+    setTimeout(async _ => {
+      if (resolved || state.get.length)
+        return;
+
+      // If user did not claimed result after function call
+      await proxy;
+    }, 0);
+    
+
+    const asyncAccess = (source, remain) => {
       while (true) {
         const resolved = source;
         if (!remain.length)
@@ -113,8 +123,25 @@ class oxy_loader {
     };
 
     const unwrap = () => {
+      resolved = true;
       const resolve = source_promise.then(source => asyncAccess(source, state.get))
       return resolve;
+    }
+
+    const callPromisedMethod = async (path, args) => {
+      const method = state.get.pop();
+      const source = await source_promise;
+      let object = asyncAccess(source, state.get);
+
+      let functor = object[method];
+      
+      if (typeof functor == 'undefined') {
+        // the object is promised and had to be awaited
+        object = await object;
+        functor = object[method];
+      }
+
+      return functor.apply(object, args);
     }
 
     const proxy = new Proxy(magicFunction, {
@@ -129,10 +156,14 @@ class oxy_loader {
         return proxy;
       },
       apply: (a, b, args, d) => {
-        const method = state.get.pop();
-        const result = unwrap().then(resolve => resolve[method].apply(resolve, args))
+        const result = callPromisedMethod(state.get, args);
+
         return oxy_loader.asyncChain(result);
-      }
+      },
+      set: (a, key, value) => {
+        const resolve = unwrap();
+        return resolve.then(obj => obj[key] = value)
+      },
     });
 
     return proxy;
@@ -175,10 +206,21 @@ class oxy_loader {
       if (target[key])
         return target[key];
 
-      let load_promise = loader.injectModule(key);
-      let chain_shortcut = oxy_loader.asyncChain(load_promise);
+      const load_promise = loader.injectModule(key);
+      const chain_shortcut = oxy_loader.asyncChain(load_promise);
 
-      return target[key] = chain_shortcut;
+      const reshedule_call = new Proxy(load_promise, {
+        get: (t, k) => {
+          return oxy_loader.asyncChain(load_promise)[k];
+        },
+        set: (t, k, v) => {
+          oxy_loader.asyncChain(load_promise)
+            .then(obj => obj[k] = v);
+          return v;
+        }
+      })
+
+      return target[key] = reshedule_call;
     }
   })
 
