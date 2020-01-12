@@ -38,23 +38,26 @@ class oxy_loader {
   dom_update_queue;
 
   DOMUpdateTimeslot() {
+    const processQueue = () => {
+      const queue = this.dom_update_queue || [];
+      this.dom_update_queue = undefined;
+
+      const start = new Date();
+      queue.map(cb => cb(document))
+      const end = new Date();
+
+      const duration = end - start;
+
+      if (duration > 30)
+        console.log('frame', duration, 'ms', `(${queue.length})`);
+
+    };
 
     if (!this.dom_update_queue) {
       this.dom_update_queue = [];
-      requestAnimationFrame(() => {
-        const queue = this.dom_update_queue;
-        this.dom_update_queue = undefined;
-
-        const start = new Date();
-        queue.map(cb => cb(document))
-        const end = new Date();
-
-        const duration = end - start;
-
-        if (duration > 30)
-          console.log('frame', duration, 'ms', `(${queue.length})`);
-
-      }) 
+      requestAnimationFrame(processQueue);
+      // process in backgroud as well
+      setTimeout(processQueue, 100);
     }
     
     let resolve;
