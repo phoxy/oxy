@@ -16,7 +16,7 @@ class oxy_loader {
 
     try {
       return fetch(url, fetch_params)
-        .then((data, reject) => data.ok ? data.text() : reject(data));
+        .then(data => data.ok ? data.text() : Promise.reject(data));
     } catch (e) {
       // request failed
       if (data || !retry) // do not retry post
@@ -48,7 +48,11 @@ class oxy_loader {
         const start = new Date();
         queue.map(cb => cb(document))
         const end = new Date();
-        console.log('frame', end - start, 'ms', `(${queue.length})`);
+
+        const duration = end - start;
+
+        if (duration > 30)
+          console.log('frame', duration, 'ms', `(${queue.length})`);
 
       }) 
     }
@@ -131,25 +135,24 @@ class oxy_loader {
     const callPromisedMethod = async (path, args) => {
       const method = state.get.pop();
       const source = await source_promise;
-      let object = asyncAccess(source, state.get);
+      const getObject = () => asyncAccess(source, [...state.get]);
+      let object = getObject();
 
-      let functor = object[method];
-      
-      if (typeof functor == 'undefined') {
+      // force separate calls
+      if (typeof getObject()[method] == 'undefined') {
         // the object is promised and had to be awaited
         object = await object;
-        functor = object[method];
       }
 
-      return functor.apply(object, args);
+      // call method with correct this, and no collision with any field names
+      return object[method](...args);
     }
 
     const proxy = new Proxy(magicFunction, {
       get: (t, key) => {
-        console.log(`get ${key}`);
-        if (key == 'then') {
+        if (['catch', 'then'].includes(key)) {
           const resolve = unwrap();
-          return resolve.then.bind(resolve);
+          return resolve[key].bind(resolve);
         }
 
         state.get.push(key);
