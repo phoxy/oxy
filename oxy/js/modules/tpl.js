@@ -13,12 +13,16 @@ class template_context {
       this.domCB.map(cb => cb(node))
     })
 
-    this.state.hooks.after.render.node.push(node => {
+    this.state.hooks.before.render.finished.push(async node => {
       if (!this.dollarCB)
         return;
 
-      const root = typeof $ !== 'undefined' ? $(node) : null;
-      this.dollarCB.map(cb => cb(root))
+      setTimeout(async () => {
+        await oxy.loader.DOMUpdateTimeslot();
+
+        const root = typeof $ !== 'undefined' ? $(node) : null;
+        this.dollarCB.map(cb => cb(root))
+      }, 100)
     })
 
     this.state.hooks.after.render.finished.push(async node => {
@@ -93,6 +97,48 @@ class template_context {
         await oxy.loader.DOMUpdateTimeslot();
         target.parentNode.replaceChild(node, target);
         // Align select and update in different frames
+      })
+
+    this.state.hooks.after.render.node.push(
+      async node => {
+        const target = node.querySelector(`#${id}`);
+        resolveTarget(target);
+        return resolveChild;
+      }
+    )
+
+    this.append(`<oxytpl id="${id}"></oxytpl>`);
+  }
+
+  addInline(address, args = {}) {
+    if (address[0] != '/') {
+      // relative address
+      const location = this.opts.address.replace(/^(?:(.*\/)|.*).*$/, '$1');
+      address = `${location}${address}`;
+    }
+
+    const genTemplId = address => `${this.opts.name}_${address.replace(/[^\w\d]/g, `_`)}_${this.state.childs++}`;
+    const id = genTemplId(address);
+
+    const task = oxy.tpl.render(address, args);
+    const promise = task.then(x => x.render.finished);
+
+    this.childs.push(task);
+
+    let resolveTarget;
+    const target = new Promise(_ => resolveTarget = _)
+    
+    const resolveChild = Promise.all([promise, target])
+      .then(async ([node, target]) => {
+        await oxy.loader.DOMUpdateTimeslot();
+
+        const ancor = document.createElement("inline");
+
+        target.parentNode.replaceChild(ancor, target);
+        for (const child of node.children)
+          ancor.parentNode.appendChild(child, ancor);
+
+        ancor.parentNode.removeChild(ancor);
       })
 
     this.state.hooks.after.render.node.push(
@@ -356,6 +402,9 @@ class template_instance {
     const nextTick = (v) => new Promise(_ => setInterval(() => _(v), 0));
 
     const start = async _ => {
+      if (!functor.eval)
+        console.error(`Failed to compile: ${context.opts.address}`);
+
       const last_output = await functor.eval.call(context, context.args);
 
       if (last_output)
@@ -429,7 +478,11 @@ class template_functor {
         '//# sourceURL=' + sourceURL + '\n',
       ].join(`\n`);
 
-    this.eval = new Function(inject)();
+    try {
+      this.eval = new Function(inject)();
+    } catch (e) {
+      console.log(`Compilation failure for ${resolveAddr}`, e, [code]);
+    }
   }
 
   instance(args) {
@@ -493,6 +546,12 @@ export class tpl {
     return handles;
   }
 
+  async node(address, args) {
+    const instance = await this.render(address, args);
+    const node = await instance.render.node;
+    return node;
+  }
+
   async getFunctor(address) {
     const name = address.replace(/[^\w\d]/g, `_`);
     if (typeof this.compile_cache[name] == 'undefined') {
@@ -518,7 +577,7 @@ export class tpl {
     const p = new Promise(_ => script.onload = _);
 
     oxy.loader.DOMUpdateTimeslot()
-      .then(document.body.appendChild(script));
+      .then(document.head.appendChild(script));
 
     return p;
   }
@@ -552,7 +611,7 @@ export class tpl {
           tag.source = name;
     
           await oxy.loader.DOMUpdateTimeslot()
-          document.body.appendChild(tag);
+          document.head.appendChild(tag);
       }
 
       detachedLoad();
@@ -562,7 +621,7 @@ export class tpl {
     const addTemplate = x => {
       try { // pre fetch and pre compile
         const args = Function(`return Array(${x})`).call();
-        this.getFunctor(args[0]);
+        this.getFunctor(args[0]).catch(_ => _);
       } catch {}
       return ['this.addTemplate(', x, ')'].join(' ');
     };
