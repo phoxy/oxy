@@ -32,6 +32,8 @@ export class app {
 
   async commitState(state, title, url) {
     window.history.pushState(state, state.title || title, url || state.url);
+    state.url = location.pathname;
+    window.history.replaceState(state, state.title || title, url || state.url);
     this.restoreState(state);
   }
 
@@ -40,6 +42,8 @@ export class app {
   }
 
   async replaceState(state, title, url) {
+    window.history.replaceState(state, state.title || title, url || state.url);
+    state.url = location.pathname;
     window.history.replaceState(state, state.title || title, url || state.url);
   }
 
@@ -50,6 +54,10 @@ export class app {
     state.title = (state.title || document.title).trim();
     state.url = (state.url || location.pathname).trim();
     return this.displayState(state, state.title, state.url);
+  }
+
+  async reloadState() {
+    return this.restoreState(history.state || {})
   }
 
 
