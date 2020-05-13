@@ -3,7 +3,7 @@ class oxy_loader {
     this.oxy = oxyHolder;
   }
 
-  rest(url, data, retry = 1) {
+  rest(url, data, retry = 5) {
     const fetch_params = {};
 
     if (data) {
