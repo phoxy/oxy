@@ -1,9 +1,28 @@
+/* safari sux */
+const requestIdleCallback = window.requestIdleCallback || window.requestAnimationFrame;
+Object.fromEntries = (iterable) => {
+  return [...iterable].reduce((obj, [key, val]) => {
+    obj[key] = val
+    return obj
+  }, {})
+}
+
 class template_context {
+  /* safari sux
   buffer = [];
   state;
   childs = [];
+  */
 
   constructor(state, opts, args) {
+    this.buffer = [];
+    this.childs = [];
+
+    this.domCB = []
+    this.dollarCB = [];
+    this.domResolvedCB = [];
+  
+    
     this.opts = opts;
     this.state = state;
     this.args = args;
@@ -152,17 +171,23 @@ class template_context {
     this.append(`<oxytpl id="${id}"></oxytpl>`);
   }
 
+  /* safari sux
   domCB = [];
+  */
   dom(cb) {
     this.domCB.push(cb);
   }
 
+  /* safari sux
   dollarCB = [];
+  */
   dollar(cb) {
     this.dollarCB.push(cb);
   }
 
+  /* safari sux
   domResolvedCB = [];
+  */
   domResolved(cb) {
     this.domResolvedCB.push(cb);
   }
@@ -187,12 +212,22 @@ class template_context {
 }
 
 class promise_with_hooks extends Promise {
+  /* safari sux
   before = [];
   after = [];
   contructed = false;
   actionPromise;
   actionDoneCb;
   returnPromise;
+  */
+
+  constructor(...args) {
+    super(...args);
+
+    this.before = [];
+    this.after = [];
+    this.contructed = false;
+  }
 
   init() {
     if (this.contructed)
@@ -226,11 +261,15 @@ class promise_with_hooks extends Promise {
 }
 
 class template_instance_state_factory {
+  /* safari sux
   warm_promises = [];
   target = 100;
   baking;
+  */
 
   constructor() {
+    this.warm_promises = [];
+    this.target = 100;  
     this.start_baking();
   }
 
@@ -370,9 +409,12 @@ class template_instance_state {
 }
 
 class template_instance {
+  /* safari sux
   state = new template_instance_state();
+  */
 
   constructor(opts, args, functor) {
+    this.state = new template_instance_state();
     const context = this.context(opts, args);
     this.init(context, functor);
   }
@@ -459,12 +501,18 @@ class template_instance {
 }
 
 class template_functor {
+  /* safari sux
   cache = {
     html: null,
     node: null,
   };
+  */
   
   constructor(opts, code) {
+    this.cache = {
+      html: null,
+      node: null,
+    };
     this.opts = opts;
 
     const resolveAddr = opts.address.replace(/\/[^\/]+\/\.\./g, "");
@@ -491,11 +539,21 @@ class template_functor {
 }
 
 export class tpl {
+  /* safari sux
   compile_cache = {};
 
   sheduleQueue = [];
   rendering = 0;
   limit = 100;
+  */
+
+  constructor() {
+    this.compile_cache = {};
+
+    this.sheduleQueue = [];
+    this.rendering = 0;
+    this.limit = 100;
+  }
 
   async renderSlot() {
     if (!this.sheduleQueue.length && this.rendering < this.limit)

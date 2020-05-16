@@ -35,8 +35,6 @@ class oxy_loader {
     return this.rest(await this.resourseUrl(url));
   }
 
-  dom_update_queue;
-
   DOMUpdateTimeslot() {
     const processQueue = () => {
       const queue = this.dom_update_queue || [];
@@ -112,7 +110,7 @@ class oxy_loader {
         return;
 
       // If user did not claimed result after function call
-      await proxy;
+      await proxy.catch(e => console.log('Async chain resolution issue:', e));
     }, 0);
     
 
